@@ -1,0 +1,10 @@
+移植于
+
+[K8s4ml](https://github.com/ReyRen/K8s4ML)
+
+和
+
+[K8sNvidia](https://github.com/ReyRen/K8sNvidia)
+
+由于感觉对于分布式训练来说，实用性很强，所以单独拎出来了...
+

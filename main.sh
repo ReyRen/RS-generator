@@ -4,16 +4,17 @@ NAMESPACE="default"
 GPU_NUM=0
 CPU_NUM=0
 MAX_GPU_NUM=3
+DELETE=0
 
 
 function help_me() {
 	echo "Usage: ./main.sh -n [namespace] -g GPUNUM -c CPUNUM]"
-	echo "-h	This message."
-	echo "-D	Delete all balabala"
+	echo "-h		This message."
+	echo "-D [namespace]	Delete all trainning RS"
 }
 
 function get_opts() {
-	while getopts "hDn:g:c:" option; do
+	while getopts "hD:n:g:c:" option; do
 		case $option in
 			n)
 				NAMESPACE=$OPTARG
@@ -25,7 +26,8 @@ function get_opts() {
 				CPU_NUM=$OPTARG
 				;;
 			D)
-				bala_DELETE=true
+				DELETE=1
+				NAMESPACE=$OPTARG
 				;;
 			h)
 				help_me
@@ -66,6 +68,11 @@ function generate_rs_file() {
 }
 
 get_opts ${@}
+
+if [ $DELETE -eq 1 ]; then
+	kubectl delete job/job-master -n $NAMESPACE
+	exit 0
+fi
 
 # create namespace
 kubectl create namespace $NAMESPACE

@@ -51,7 +51,7 @@ def generate_gpu_pod_slave(yaml_file, num):
                 'apiVersion':'v1',
                 'kind':'Pod',
                 'metadata':{'name':podName,'namespace':namespace,'labels':{'run':svcSelector}},
-                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}],"nodeSelector":{'disktype':'gpu-node1'}}}
+                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
     
     # join
     file = open(yaml_file, 'w')
@@ -75,13 +75,20 @@ def generate_gpu_job_slave(yaml_file):
     containerName = "job-container-master"
     arg_extra=arg_base
     arg_extra+="ssh-keygen -t rsa -P \"\" -f ~/.ssh/id_rsa;"
+    arg_extra_ssh = ""
+    arg_extra_exec = ""
     for i in range(1, int(gpu_num)+1):
         if i == 1:
-            arg_extra+="sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+            arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+            arg_extra_exec = "horovodrun -np " + gpu_num + " -H " + svcName + "." + namespace + ".svc.cluster.local:1"
             continue
         num = i - 1
         svcName = ''.join(['pod-svc-slave', str(num)])
-        arg_extra+="sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+        arg_extra_ssh += "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+        arg_extra_exec += "," + svcName + "." + namespace + ".svc.cluster.local:1"
+
+
+    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py > result 2>&1"
     list_arg_job.append(arg_extra)
 
     py_object = {

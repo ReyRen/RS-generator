@@ -51,31 +51,3 @@
 ```
 ./main.sh -D NAMESPACE
 ```
-
-
-
-
-
-
-
-
-
-## Usage:
-```
-#
-# usage:
-# If you want to use 2 GPUs to do the trainning:
-#       ./main.sh -g 2
-# If you want to specify the NAMESPACE with 3 GPUs to do the trainning:(default namespace will be use if without -n NAMESPACE)
-#       ./main.sh -n ai -g 3
-# If you want to use 2 CPUs to do the trainning:
-#       ./main.sh -c 2
-# If you want to specify the NAMESPACE with 3 CPUs to do the trainning:(default namespace will be use if without -n NAMESPACE)
-#       ./main.sh -n ai -c 2
-# If you want to mix GPUs and CPUs:
-#       ./main.sh -n ai -g 2 -c 2
-#
-#
-
-```
-

@@ -124,15 +124,21 @@ if __name__ == '__main__':
             for i in range(1,int(gpu_num)):
                 file_name = ''.join(['gpu-pod-slave', str(i), '.yaml'])
                 yaml_path = os.path.join(current_path, file_name)
-                generate_gpu_pod_slave(yaml_path, i)
-                print("%s created"%(file_name))
+                if not os.path.exists(yaml_path):
+                    generate_gpu_pod_slave(yaml_path, i)
+                    print("%s created"%(yaml_path))
+                else:
+                    print("%s already exists"%(yaml_path))
                 if exec_true:
-                    k8s_apply = "kubectl apply -f " + file_name
+                    k8s_apply = "kubectl apply -f " + yaml_path
                     os.system(k8s_apply)
 
         yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
-        generate_gpu_job_slave(yaml_path)
-        print("%s created"%("gpu-job-master.yaml"))
+        if not os.path.exists(yaml_path):
+            generate_gpu_job_slave(yaml_path)
+            print("%s created"%("gpu-job-master.yaml"))
+        else:
+            print("%s already exists"%(yaml_path))
         if exec_true:
             os.system("kubectl apply -f gpu-job-master.yaml")
 

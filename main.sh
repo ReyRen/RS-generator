@@ -4,7 +4,7 @@ NAMESPACE="default"
 GPU_NUM=0
 CPU_NUM=0
 MAX_GPU_NUM=3
-DELETE=false
+DELETE=0
 EXEC_TRUE=true
 
 #
@@ -53,7 +53,7 @@ function get_opts() {
 			D)
 				# Since the default NAMESPACE is 'default', and delete it by accident is very dangerous. so
 				# the paramater is required.
-				DELETE=true
+				DELETE=1
 				NAMESPACE=$OPTARG
 				;;
 			h)
@@ -96,7 +96,7 @@ function generate_rs_file() {
 
 get_opts ${@}
 
-if [ $DELETE ]; then
+if [ $DELETE -eq 1 ]; then
 	kubectl delete job/job-master -n $NAMESPACE
 	kubectl delete --all pods --namespace=$NAMESPACE	
 	kubectl delete --all svc --namespace=$NAMESPACE	

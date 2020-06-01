@@ -5,6 +5,7 @@ GPU_NUM=0
 CPU_NUM=0
 MAX_GPU_NUM=3
 DELETE=0
+EXEC_TRUE=true
 
 #
 # usage:
@@ -18,7 +19,8 @@ DELETE=0
 #	./main.sh -n ai -c 2
 # If you want to mix GPUs and CPUs:
 #	./main.sh -n ai -g 2 -c 2
-#
+# If you only want create those RS files() instead of executing it:(default will execute)
+#	./main.sh balabala -e false
 #
 
 function help_me() {
@@ -28,8 +30,11 @@ function help_me() {
 }
 
 function get_opts() {
-	while getopts "hD:n:g:c:" option; do
+	while getopts "hD:n:g:c:e:" option; do
 		case $option in
+			e)
+				EXEC_TRUE=$OPTARG
+				;;
 			n)
 				NAMESPACE=$OPTARG
 				;;
@@ -66,15 +71,15 @@ function generate_rs_file() {
 		# use GPU
 		if [ $CPU_NUM -gt 0 ]; then
 			# use GPU and CPU
-			./generate_gpu_rs.py $NAMESPACE $GPU_NUM
-			./generate_cpu_rs.py $NAMESPACE $CPU_NUM
+			./generate_gpu_rs.py $NAMESPACE $GPU_NUM $EXEC_TRUE
+			./generate_cpu_rs.py $NAMESPACE $CPU_NUM $EXEC_TRUE
 		else
 			# only GPU
-			./generate_gpu_rs.py $NAMESPACE $GPU_NUM
+			./generate_gpu_rs.py $NAMESPACE $GPU_NUM $EXEC_TRUE
 		fi
 	elif [ $CPU_NUM -gt 0 ]; then
 		# use CPU without GPU
-		./generate_cpu_rs.py $NAMESPACE $CPU_NUM
+		./generate_cpu_rs.py $NAMESPACE $CPU_NUM $EXEC_TRUE
 	else
 		# nothing to create but namespace
 		echo "nothing to do except for namespace created !!"

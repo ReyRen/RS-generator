@@ -108,6 +108,7 @@ if __name__ == '__main__':
     try:
         namespace = sys.argv[1]
         gpu_num = sys.argv[2] # this num stand by the number of GPU pods
+        exec_true = sys.argv[3]
 
         list_arg_pod = []
         list_arg_job = []
@@ -125,13 +126,15 @@ if __name__ == '__main__':
                 yaml_path = os.path.join(current_path, file_name)
                 generate_gpu_pod_slave(yaml_path, i)
                 print("%s created"%(file_name))
-                k8s_apply = "kubectl apply -f " + file_name
-                os.system(k8s_apply)
+                if exec_true:
+                    k8s_apply = "kubectl apply -f " + file_name
+                    os.system(k8s_apply)
 
         yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
         generate_gpu_job_slave(yaml_path)
         print("%s created"%("gpu-job-master.yaml"))
-        os.system("kubectl apply -f gpu-job-master.yaml")
+        if exec_true:
+            os.system("kubectl apply -f gpu-job-master.yaml")
 
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:

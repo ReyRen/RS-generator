@@ -4,7 +4,7 @@ NAMESPACE="default"
 GPU_NUM=0
 CPU_NUM=0
 MAX_GPU_NUM=3
-DELETE=0
+DELETE=false
 EXEC_TRUE=true
 
 #
@@ -21,12 +21,18 @@ EXEC_TRUE=true
 #	./main.sh -n ai -g 2 -c 2
 # If you only want create those RS files() instead of executing it:(default will execute)
 #	./main.sh balabala -e false
+# If you want to delete all RS in the NAMESPACE:(default is by default:))
+#	./main.sh -D ai
 #
 
 function help_me() {
-	echo "Usage: ./main.sh -n [namespace] -g GPUNUM -c CPUNUM]"
+	echo "Usage: ./main.sh -n [namespace] -g [GPUNUM] -c [CPUNUM] -e [true/false] -D [NAMESPACE] -h"
 	echo "-h		This message."
-	echo "-D [namespace]	Delete all trainning RS"
+	echo "-D [namespace]	Delete all RS in the specific NAMESPACE"
+	echo "-n [namespace]	create NAMESPACE when create RS"
+	echo "-g [GPUNUM]	trainning with GPUNUM GPUs, 0 is nothing to create"
+	echo "-g [CPUNUM]	trainning with GPUNUM CPUs, 0 is nothing to create"
+	echo "-e [true/false]	true(default) means it will create RS files and execute or without execution"
 }
 
 function get_opts() {
@@ -45,7 +51,9 @@ function get_opts() {
 				CPU_NUM=$OPTARG
 				;;
 			D)
-				DELETE=1
+				# Since the default NAMESPACE is 'default', and delete it by accident is very dangerous. so
+				# the paramater is required.
+				DELETE=true
 				NAMESPACE=$OPTARG
 				;;
 			h)
@@ -88,8 +96,10 @@ function generate_rs_file() {
 
 get_opts ${@}
 
-if [ $DELETE -eq 1 ]; then
+if [ $DELETE ]; then
 	kubectl delete job/job-master -n $NAMESPACE
+	kubectl delete --all pods --namespace=$NAMESPACE	
+	kubectl delete --all svc --namespace=$NAMESPACE	
 	exit 0
 fi
 

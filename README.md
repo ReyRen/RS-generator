@@ -21,6 +21,11 @@
 * 拥有一个稳健的Kubernetes集群(参考[K8s4ml](https://github.com/ReyRen/K8s4ML) & [K8sNvidia](https://github.com/ReyRen/K8sNvidia))
 * 拥有一个NFS持久化PV/PVC(参考[NFS持久化存储参考](https://www.cnblogs.com/linuxk/p/9760363.html))，当然也可以是其他持久化存储，但是相应的RS属性得更改一下.
 
+![](pv.png)
+从上面看到我使用的是`pod-pvc-volume-1`这个`ai`命名空间下的pvc
+
+**pvc的namespace需要和创建资源的namespace一致，不然不能跨namespace使用**
+
 ## 使用
 首先查看粗粒度使用信息:
 ```
@@ -47,6 +52,7 @@
 ./main.sh -n NAMESPACE -g 2 -c 2
 ```
 如果想要删除命名空间下的所有资源(清空使用):
+
 **危**：如果上面创建是在默认的`default`命名空间下, 请不要使用这个命令指定`default`, 因为`defualt`命名空间下有集群重要组件
 ```
 ./main.sh -D NAMESPACE

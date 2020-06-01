@@ -6,7 +6,7 @@
 **现状:**
 当然，RS-generator不能做到面面俱到, 他最主要的是创建了一些可扩展性的模板，以及回收等功能.
 
-![](github1.png)
+![](images/github1.png)
 
 从图中可以看出，绿色的打印输出部分就是一些常规的RS中的配置信息，这样很方便的战士出来，可以让使用者知道，自动生成的这个RS模板副不符合我的预期. 当然, `args`是没有扔出来的，那个有点大，后期需要完善的时候，有时间再规划规划吧.
 
@@ -21,7 +21,7 @@
 * 拥有一个稳健的Kubernetes集群(参考[K8s4ml](https://github.com/ReyRen/K8s4ML) & [K8sNvidia](https://github.com/ReyRen/K8sNvidia))
 * 拥有一个NFS持久化PV/PVC(参考[NFS持久化存储参考](https://www.cnblogs.com/linuxk/p/9760363.html))，当然也可以是其他持久化存储，但是相应的RS属性得更改一下.
 
-![](pv.png)
+![](images/pv.png)
 从上面看到我使用的是`pod-pvc-volume-1`这个`ai`命名空间下的pvc
 
 **pvc的namespace需要和创建资源的namespace一致，不然不能跨namespace使用**

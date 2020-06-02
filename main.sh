@@ -6,6 +6,7 @@ CPU_NUM=0
 MAX_GPU_NUM=3
 DELETE=0
 EXEC_TRUE=true
+DISTRIBUTION=horovod
 
 #
 # usage:
@@ -20,7 +21,7 @@ EXEC_TRUE=true
 # If you want to mix GPUs and CPUs:
 #	./main.sh -n ai -g 2 -c 2
 # If you only want create those RS files() instead of executing it:(default will execute)
-#	./main.sh balabala -e false
+#	./main.sh balabala -e False
 # If you want to delete all RS in the NAMESPACE:(default is by default:))
 #	./main.sh -D ai
 #
@@ -36,8 +37,11 @@ function help_me() {
 }
 
 function get_opts() {
-	while getopts "hD:n:g:c:e:" option; do
+	while getopts "hD:n:g:c:e:d:" option; do
 		case $option in
+			d)
+				DISTRIBUTION=$OPTARG
+				;;
 			e)
 				EXEC_TRUE=$OPTARG
 				;;
@@ -100,6 +104,7 @@ if [ $DELETE -eq 1 ]; then
 	kubectl delete job/job-master -n $NAMESPACE
 	kubectl delete --all pods --namespace=$NAMESPACE	
 	kubectl delete --all svc --namespace=$NAMESPACE	
+#	kubectl delete namespace $NAMESPACE
 	exit 0
 fi
 

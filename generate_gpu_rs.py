@@ -129,7 +129,7 @@ if __name__ == '__main__':
                     print("%s created"%(yaml_path))
                 else:
                     print("%s already exists"%(yaml_path))
-                if exec_true:
+                if exec_true == "true":
                     k8s_apply = "kubectl apply -f " + yaml_path
                     os.system(k8s_apply)
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             print("%s created"%("gpu-job-master.yaml"))
         else:
             print("%s already exists"%(yaml_path))
-        if exec_true:
+        if exec_true == "true":
             os.system("kubectl apply -f gpu-job-master.yaml")
 
         logging.info("Created RS in %s namespaces." %(namespace))

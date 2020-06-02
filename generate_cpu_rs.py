@@ -6,175 +6,142 @@ import logging
 import os
 import sys
 
-def generate_service_doc(yaml_file):
-    serviceName = raw_input("输入想要创建的service name(svc-testing): ")
-    svcSelector = raw_input("输入想要被service管理的label name(testing-label): ")
-    portName = raw_input("输入想要映射端口的别名: ")
-    portProtocol = raw_input("输入映射端口的protocol: ")
-    nodePort = raw_input("输入外部访问svc的端口: ")
-    port = raw_input("请输入集群访问svc的端口: ")
-    targetPort = raw_input("请输入pod内部的端口: ")
+def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name):
 
-    if serviceName == "":
-        serviceName = "svc-testing"
-    if svcSelector == "":
-        svcSelector = "testing-label"
-    if nodePort != "":
-        nodePort = int(nodePort)
-    if port != "":
-        port = int(port)
-    if targetPort != "":
-        targetPort = int(targetPort)
-    
+    print("\033[0;32m====> svc.metadata.name: %s\033[0m"%(svcName))
+    print("\033[0;32m====> svc.metadata.namespace: %s\033[0m"%(namespace))
+    print("\033[0;32m====> svc.spec.ports.port: %s\033[0m"%(port))
+    print("\033[0;32m====> svc.spec.selector.run: %s\033[0m"%(svcSelector))
+    print("\033[0;32m====> pod.metadata.name: %s\033[0m"%(podName))
+    print("\033[0;32m====> pod.spec.containers.image: %s\033[0m"%(image_name))
+    print("\033[0;32m====> pod.spec.containers.name: %s\033[0m"%(containerName))
+    print("\033[0;32m====> pod.spec.containers.volumeMounts.name: %s\033[0m"%(volume_name))
+    print("\033[0;32m====> pod.spec.containers.volumeMounts.mountPath: %s\033[0m"%(mount_path))
+    print("\033[0;32m====> pod.spec.volumes.name: %s\033[0m"%(volume_name))
+    print("\033[0;32m====> pod.spec.volumes.persistentVolumeClaim.persistentVolumeClaim: %s\033[0m"%(claim_name))
+
+def generate_service_template(serviceName, selectorName):
+
     py_object = {
                 'apiVersion':'v1',
                 'kind':'Service',
                 'metadata':{'name':serviceName,'namespace':namespace},
-                'spec':{'type':'NodePort','selector':{'run':svcSelector},'ports':[{'name':portName,'protocol':portProtocol,'nodePort':nodePort,'port':port,'targetPort':targetPort}]}
+                'spec':{'selector':{'run':selectorName},'ports':[{'name':'ssh','protocol':'TCP','port':22,'targetPort':22}]}
                 }
-    file = open(yaml_file, 'w')
-    yaml.dump(py_object, file)
-    file.close()
 
-def generate_deployment_doc(yaml_file):
+    return py_object
 
-    deploymentName = raw_input("输入想要创建的Deployment名称(pod-testing): ")
-    replicasNum = raw_input("输入想要创建的replicas数量(1): ")
-    matchLabels = raw_input("输入想要创建的matchLabels名称(testing-label): ")
-    containerName = raw_input("输入想要创建的容器的名称(testing-container): ")
-    imageName = raw_input("输入想要创建的image的名称: ")
-    commandStr = raw_input("输入想要提前执行的命令: ")
-    gpuNum = raw_input("输入想要使用的GPU个数(0): ")
-    volumeMountsName = raw_input("输入想要挂在的逻辑卷名称(mount-name-testing): ")
-    mountPath = raw_input("输入想要挂在的pod中的目录(/usr/share/horovod): ")
-    pvcName = raw_input("输入要使用的pvc(pod-pvc-volume-1): ")
-    disktype = raw_input("输入想要绑定的node(none, optional: cpu-master gpu-node1/2/3): ")
+def generate_cpu_pod_slave(yaml_file, num):
 
-    if deploymentName == "":
-        deploymentName = "pod-testing"
-    if replicasNum == "":
-        replicasNum = "1"
-    if matchLabels == "":
-        matchLabels = "testing-label"
-    if containerName == "":
-        containerName = "testing-container"
-    if imageName == "":
-        print('ERROR: 请指定imageName')
-        os._exit(1)
-    if commandStr == "":
-        commandStr = "[ \"/bin/bash\", \"-ce\", \"tail -f /dev/null\" ]"
-    if gpuNum == "":
-        gpuNum = "0"
-    if volumeMountsName == "":
-        volumeMountsName = "mount-name-testing"
-    if mountPath == "":
-        mountPath = "/usr/share/horovod"
-    if pvcName == "":
-        pvcName = "pod-pvc-volume-1"
+    # generate service
+    svcName = ''.join(['pod-svc-slave', str(num)])
+    svcSelector = ''.join(['pod-selector-slave', str(num)])
+    mount_path = "/usr/share/horovod"
+    volume_name = "volume-name"
+    claim_name = "pod-pvc-volume-1"
+    py_object_svc = generate_service_template(svcName, svcSelector)
 
-
-    py_object = {
-                'apiVersion':'apps/v1',
-                'kind':'Deployment',
-                'metadata':{'name':deploymentName,'namespace':namespace},
-                'spec':{'replicas':int(replicasNum),
-                        'selector':{'matchLabels':{'run':matchLabels}},
-                        'template':{'metadata':{'labels':{'run':matchLabels}},
-                                    'spec':{'containers':[{'name':containerName,'image':imageName,'command':commandStr, 'resources':{'limits':{'nvidia.com/gpu':int(gpuNum)}},'volumeMounts':[{'name':volumeMountsName, 'mountPath':mountPath}]}],
-                                             'nodeSelector':{'disktype':disktype},
-                                             'volumes':[{'name':volumeMountsName,'persistentVolumeClaim':{'claimName':pvcName}}]}}
-                                    
-                                    }
-                }
-    file = open(yaml_file, 'w')
-    yaml.dump(py_object, file)
-#   yaml.dump_all([py_object,py_object2], file)
-
-    file.close()
-
-def generate_pod_doc(yaml_file):
-    serviceName = raw_input("输入想要创建的service name(svc-testing): ")
-    svcSelector = raw_input("输入想要被service管理的label name(testing-label): ")
-    portName = raw_input("输入想要映射端口的别名: ")
-    portProtocol = raw_input("输入映射端口的protocol: ")
-    nodePort = raw_input("输入外部访问svc的端口: ")
-    port = raw_input("请输入集群访问svc的端口: ")
-    targetPort = raw_input("请输入pod内部的端口: ")
-
-    if serviceName == "":
-        serviceName = "svc-testing"
-    if svcSelector == "":
-        svcSelector = "testing-label"
-    if nodePort != "":
-        nodePort = int(nodePort)
-    if port != "":
-        port = int(port)
-    if targetPort != "":
-        targetPort = int(targetPort)
-    
+    # generate pod
+    arg_pod = arg_base
+    arg_pod+="tail -f /dev/null;"
+    list_arg_pod.append(arg_pod)
+    podName = ''.join(['pod-slave', str(num)])
+    containerName = ''.join(['pod-container-slave', str(num)])
     py_object = {
                 'apiVersion':'v1',
-                'kind':'Service',
-                'metadata':{'name':serviceName,'namespace':namespace},
-                'spec':{'type':'NodePort','selector':{'run':svcSelector},'ports':[{'name':portName,'protocol':portProtocol,'nodePort':nodePort,'port':port,'targetPort':targetPort}]}
-                }
-    file = open(yaml_file, 'w')
-    yaml.dump(py_object, file)
-    file.close()
-
-def generate_job_doc(yaml_file):
-    serviceName = raw_input("输入想要创建的service name(svc-testing): ")
-    svcSelector = raw_input("输入想要被service管理的label name(testing-label): ")
-    portName = raw_input("输入想要映射端口的别名: ")
-    portProtocol = raw_input("输入映射端口的protocol: ")
-    nodePort = raw_input("输入外部访问svc的端口: ")
-    port = raw_input("请输入集群访问svc的端口: ")
-    targetPort = raw_input("请输入pod内部的端口: ")
-
-    if serviceName == "":
-        serviceName = "svc-testing"
-    if svcSelector == "":
-        svcSelector = "testing-label"
-    if nodePort != "":
-        nodePort = int(nodePort)
-    if port != "":
-        port = int(port)
-    if targetPort != "":
-        targetPort = int(targetPort)
+                'kind':'Pod',
+                'metadata':{'name':podName,'namespace':namespace,'labels':{'run':svcSelector}},
+                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
     
-    py_object = {
-                'apiVersion':'v1',
-                'kind':'Service',
-                'metadata':{'name':serviceName,'namespace':namespace},
-                'spec':{'type':'NodePort','selector':{'run':svcSelector},'ports':[{'name':portName,'protocol':portProtocol,'nodePort':nodePort,'port':port,'targetPort':targetPort}]}
-                }
+    # join
     file = open(yaml_file, 'w')
-    yaml.dump(py_object, file)
+    yaml.dump_all([py_object_svc, py_object], file)
     file.close()
 
+    print_msg(svcName, 22, svcSelector, podName, containerName, mount_path, volume_name, claim_name)
+
+
+def generate_cpu_job_slave(yaml_file):
+    # generate service
+    svcName = "job-svc-master"
+    svcSelector = "job-selector-master"
+    mount_path = "/usr/share/horovod"
+    volume_name = "volume-name"
+    claim_name = "pod-pvc-volume-1"
+    py_object_svc = generate_service_template(svcName, svcSelector)
+
+    # generate job
+    jobName = "job-master"
+    containerName = "job-container-master"
+    arg_extra=arg_base
+    arg_extra+="ssh-keygen -t rsa -P \"\" -f ~/.ssh/id_rsa;"
+    arg_extra_ssh = ""
+    arg_extra_exec = ""
+    for i in range(1, int(cpu_num)+1):
+        if i == 1:
+            arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+            arg_extra_exec = "horovodrun -np " + cpu_num + " -H " + svcName + "." + namespace + ".svc.cluster.local:4"
+            continue
+        num = i - 1
+        svcName = ''.join(['pod-svc-slave', str(num)])
+        arg_extra_ssh += "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
+        arg_extra_exec += "," + svcName + "." + namespace + ".svc.cluster.local:4"
+
+
+    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py > result 2>&1"
+    list_arg_job.append(arg_extra)
+
+    py_object = {
+                'apiVersion':'batch/v1',
+                'kind':'Job',
+                'metadata':{'name':jobName,'namespace':namespace,'labels':{'run':svcSelector}},
+                'spec':{'template':{'metadata':{'name':'job-master','labels':{'run':svcSelector}},'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_job,'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}],'restartPolicy':'Never'}}}}
+
+    # join
+    file = open(yaml_file, 'w')
+    yaml.dump_all([py_object_svc, py_object], file)
+    file.close()
+
+    print_msg(svcName, 22, svcSelector, jobName, containerName, mount_path, volume_name, claim_name)
 
 if __name__ == '__main__':
     try:
         namespace = sys.argv[1]
-        rstype = sys.argv[2]
+        cpu_num = sys.argv[2] # this num stand by the number of GPU pods
+        exec_true = sys.argv[3]
+
+        list_arg_pod = []
+        list_arg_job = []
+
+        # TODO:some paramaters can be modified
+        image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
+        # base command
+        arg_base = 'cd /usr/share/horovod/SSD-Tensorflow/;apt update -y;apt install ssh vim sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
 
         current_path = os.path.abspath(".")
-        if rstype == "Deployment":
-            yaml_path = os.path.join(current_path, "Deployment.yaml")
-            generate_deployment_doc(yaml_path)
-        elif rstype == "Service":
-            yaml_path = os.path.join(current_path, "Service.yaml")
-            generate_service_doc(yaml_path)
-        elif rstype == "Pod":
-            yaml_path = os.path.join(current_path, "Pod.yaml")
-            generate_pod_doc(yaml_path)
-        elif rstype == "Job":
-            yaml_path = os.path.join(current_path, "Job.yaml")
-            generate_job_doc(yaml_path)
+
+        if cpu_num > 1:
+            for i in range(1,int(cpu_num)):
+                file_name = ''.join(['cpu-pod-slave', str(i), '.yaml'])
+                yaml_path = os.path.join(current_path, file_name)
+                if not os.path.exists(yaml_path):
+                    generate_cpu_pod_slave(yaml_path, i)
+                    print("%s created"%(yaml_path))
+                else:
+                    print("%s already exists"%(yaml_path))
+                if exec_true:
+                    k8s_apply = "kubectl apply -f " + yaml_path
+                    os.system(k8s_apply)
+
+        yaml_path = os.path.join(current_path, "cpu-job-master.yaml")
+        if not os.path.exists(yaml_path):
+            generate_cpu_job_slave(yaml_path)
+            print("%s created"%("cpu-job-master.yaml"))
+        else:
+            print("%s already exists"%(yaml_path))
+        if exec_true:
+            os.system("kubectl apply -f cpu-job-master.yaml")
 
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:
         logging.error("Failed to create RS in %s namespaces: {}" %(namespace))
-
-# apt update -y; apt install ssh vim -y; tmp="PermitRootLogin yes"; sed -i "/^#PermitRootLogin/c$tmp" /etc/ssh/sshd_conf; /etc/init.d/ssh restart
-# echo root:admin123|chpasswd

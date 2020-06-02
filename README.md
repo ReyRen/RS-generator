@@ -16,6 +16,8 @@
 ```
 来使得这些资源配置文件是生成而不执行的. 根据自己的需求，进行更改后，将`-e false`参数去掉或者写成`-e true`再执行一遍, 即可将其运行起来. 
 
+目前针对horovod生成的模板中使用的是build好的[GPU image](generate_gpu_rs.py), 但是也是支持[CPU image](generate_cpu_rs.py)的，只不过没有build，需要的话可以自行进行编译或者去docker hub上搜索. 
+
 ## 使用前提
 
 * 拥有一个稳健的Kubernetes集群(参考[K8s4ml](https://github.com/ReyRen/K8s4ML) & [K8sNvidia](https://github.com/ReyRen/K8sNvidia))
@@ -56,4 +58,8 @@
 **危**：如果上面创建是在默认的`default`命名空间下, 请不要使用这个命令指定`default`, 因为`defualt`命名空间下有集群重要组件
 ```
 ./main.sh -D NAMESPACE
+```
+默认是创建RS文件并且执行起来的，如果想要进行修改，或者不想让马上执行，而只是想拿到模板文件:
+```
+./main.sh -e false
 ```

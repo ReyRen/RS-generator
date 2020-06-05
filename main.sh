@@ -115,6 +115,7 @@ if [ $DELETE -eq 1 ]; then
 	kubectl delete --all pods --namespace=$NAMESPACE	
 	kubectl delete --all svc --namespace=$NAMESPACE	
 #	kubectl delete namespace $NAMESPACE
+	rm -rf *.yaml
 	exit 0
 fi
 

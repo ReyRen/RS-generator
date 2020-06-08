@@ -105,6 +105,16 @@ def generate_gpu_job_slave(yaml_file):
 
     print_msg(svcName, 22, svcSelector, jobName, containerName, mount_path, volume_name, claim_name)
 
+def print_wait_msg(num):
+
+    for i in range(1,int(num) + 1):
+        sys.stdout.write("*")
+        sys.stdout.flush()
+        time.sleep( 1 )
+
+    print("")
+
+
 if __name__ == '__main__':
     try:
         namespace = sys.argv[1]
@@ -117,20 +127,9 @@ if __name__ == '__main__':
         # TODO:some paramaters can be modified
         image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
         # base command
-        arg_base = 'cd /usr/share/horovod/SSD-Tensorflow/;apt update -y;apt install ssh vim sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
+        arg_base = 'cd /usr/share/horovod/SSD-Tensorflow/;apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
 
         current_path = os.path.abspath(".")
-
-
-        yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
-        if not os.path.exists(yaml_path):
-            generate_gpu_job_slave(yaml_path)
-            print("%s created"%("gpu-job-master.yaml"))
-        else:
-            print("%s already exists"%(yaml_path))
-        if exec_true == "true":
-            os.system("kubectl apply -f gpu-job-master.yaml")
-            time.sleep( 12 )
 
         if gpu_num > 1:
             for i in range(1,int(gpu_num)):
@@ -144,6 +143,18 @@ if __name__ == '__main__':
                 if exec_true == "true":
                     k8s_apply = "kubectl apply -f " + yaml_path
                     os.system(k8s_apply)
+
+        print("\033[1;33mPlease wait a minute to let slave pod startup...\033[3,31m")
+        print_wait_msg(20) # 给slave一些时间，这样可以避免master job重新启动
+
+        yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
+        if not os.path.exists(yaml_path):
+            generate_gpu_job_slave(yaml_path)
+            print("%s created"%("gpu-job-master.yaml"))
+        else:
+            print("%s already exists"%(yaml_path))
+        if exec_true == "true":
+            os.system("kubectl apply -f gpu-job-master.yaml")
 
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:

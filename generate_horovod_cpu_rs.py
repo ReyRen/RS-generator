@@ -88,7 +88,7 @@ def generate_cpu_job_slave(yaml_file):
         arg_extra_exec += "," + svcName + "." + namespace + ".svc.cluster.local:4"
 
 
-    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py > result 2>&1"
+    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py"
     list_arg_job.append(arg_extra)
 
     py_object = {

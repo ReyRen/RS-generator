@@ -119,6 +119,11 @@ if [ $DELETE -eq 1 ]; then
 	exit 0
 fi
 
+function monitor_logs() {
+	kubectl get pods -n $NAMESPACE
+	echo -e  "\033[36mPlease execute 'kubectl logs -f PODNAME -n $NAMESPACE' to do monitoring..\033[0m"
+}
+
 # create namespace
 kubectl create namespace $NAMESPACE
 
@@ -127,10 +132,12 @@ case $DISTRIBUTION in
 	horovod)
 		echo -e "\033[36mStart generate YAML RS files...\033[0m"
 		generate_horovod_rs_file
+		monitor_logs
 		;;
 	tensorflow)
 		echo -e "\033[36mStart generate YAML RS files...\033[0m"
 		generate_tensorflow_rs_file
+		monitor_logs
 		;;
 	*)
 		echo -e "\033[31mWrong distribution framework support!!\033[0m"

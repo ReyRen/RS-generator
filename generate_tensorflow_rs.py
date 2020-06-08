@@ -6,6 +6,20 @@ import logging
 import os
 import sys
 
+def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name, img_name):
+
+    print("\033[0;32m====> svc.metadata.name: %s\033[0m"%(svcName))
+    print("\033[0;32m====> svc.metadata.namespace: %s\033[0m"%(namespace))
+    print("\033[0;32m====> svc.spec.ports.port: %s\033[0m"%(port))
+    print("\033[0;32m====> svc.spec.selector.run: %s\033[0m"%(svcSelector))
+    print("\033[0;32m====> pod.metadata.name: %s\033[0m"%(podName))
+    print("\033[0;32m====> pod.spec.containers.image: %s\033[0m"%(img_name))
+    print("\033[0;32m====> pod.spec.containers.name: %s\033[0m"%(containerName))
+    print("\033[0;32m====> pod.spec.containers.volumeMounts.name: %s\033[0m"%(volume_name))
+    print("\033[0;32m====> pod.spec.containers.volumeMounts.mountPath: %s\033[0m"%(mount_path))
+    print("\033[0;32m====> pod.spec.volumes.name: %s\033[0m"%(volume_name))
+    print("\033[0;32m====> pod.spec.volumes.persistentVolumeClaim.persistentVolumeClaim: %s\033[0m"%(claim_name))
+
 def get_nodes_name():
     
     cpu_nodes = ""
@@ -31,7 +45,7 @@ def generate_service_template(serviceName, selectorName):
                 'apiVersion':'v1',
                 'kind':'Service',
                 'metadata':{'name':serviceName,'namespace':namespace},
-                'spec':{'selector':{'run':selectorName},'ports':[{'name':'ssh','protocol':'TCP','port':22,'targetPort':22},{'name':'tf','protocol':'TCP','port':2222,'target':2222}]}
+                'spec':{'selector':{'run':selectorName},'ports':[{'name':'ssh','protocol':'TCP','port':22,'targetPort':22},{'name':'tf','protocol':'TCP','port':2222,'targetPort':2222}]}
                 }
 
     return py_object
@@ -47,7 +61,7 @@ def generate_gpu_pod_worker(num, yaml_file):
 
     #generate pod
     arg_pod = arg_base
-    arg_pod += ' --jobname="worker" --taskindex=' + str(num - 1) + " > tf_result" + str(num - 1) + "; tail -f /dev/null;"
+    arg_pod += ' --jobname="worker" --taskindex=' + str(num - 1) + "; tail -f /dev/null"
     list_arg_pod.append(arg_pod)
     podName = ''.join(['pod-worker', str(num)])
     containerName = ''.join(['pod-container-worker', str(num)])
@@ -58,11 +72,13 @@ def generate_gpu_pod_worker(num, yaml_file):
                 'apiVersion':'v1',
                 'kind':'Pod',
                 'metadata':{'name':podName,'namespace':namespace,'labels':{'run':svcSelector}},
-                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
+                'spec':{'containers':[{'name':containerName,'image':image_name_gpu,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
 
     file = open(yaml_file, 'w')
     yaml.dump_all([py_object_svc, py_object], file)
     file.close()
+
+    print_msg(svcName, "22,2222", svcSelector, podName, containerName, mount_path, volume_name, claim_name, image_name_gpu)
 
 def generate_cpu_pod_ps(num, yaml_file):
 
@@ -75,7 +91,7 @@ def generate_cpu_pod_ps(num, yaml_file):
 
     #generate pod
     arg_pod = arg_base
-    arg_pod += ' --jobname="ps" --taskindex=' + str(num - 1) + ";tail -f /dev/null;"
+    arg_pod += ' --jobname="ps" --taskindex=' + str(num - 1)
     list_arg_pod.append(arg_pod)
     podName = ''.join(['pod-ps', str(num)])
     containerName = ''.join(['pod-container-ps', str(num)])
@@ -86,11 +102,13 @@ def generate_cpu_pod_ps(num, yaml_file):
                 'apiVersion':'v1',
                 'kind':'Pod',
                 'metadata':{'name':podName,'namespace':namespace,'labels':{'run':svcSelector}},
-                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
+                'spec':{'containers':[{'name':containerName,'image':image_name_cpu,'command':['/bin/sh','-c'],'args':list_arg_pod,'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
 
     file = open(yaml_file, 'w')
     yaml.dump_all([py_object_svc, py_object], file)
     file.close()
+
+    print_msg(svcName, "22,2222", svcSelector, podName, containerName, mount_path, volume_name, claim_name, image_name_cpu)
 
 
 
@@ -102,7 +120,8 @@ if __name__ == '__main__':
         exec_true = sys.argv[4]
 
         # TODO:some paramaters can be modified
-        image_name = 'okwrtdsh/anaconda3:tf-10.0-cudnn7'
+        image_name_gpu = 'okwrtdsh/anaconda3:tf-10.0-cudnn7'
+        image_name_cpu = 'okwrtdsh/anaconda3:tf-cpu'
         # base command
         arg_base = 'cd /usr/share/horovod/tensorflow_distributed/; python example.py '
         current_path = os.path.abspath(".")

@@ -5,6 +5,7 @@ import yaml
 import logging
 import os
 import sys
+import time
 
 def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name):
 
@@ -88,7 +89,7 @@ def generate_gpu_job_slave(yaml_file):
         arg_extra_exec += "," + svcName + "." + namespace + ".svc.cluster.local:1"
 
 
-    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py > result 2>&1"
+    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py"
     list_arg_job.append(arg_extra)
 
     py_object = {
@@ -120,6 +121,17 @@ if __name__ == '__main__':
 
         current_path = os.path.abspath(".")
 
+
+        yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
+        if not os.path.exists(yaml_path):
+            generate_gpu_job_slave(yaml_path)
+            print("%s created"%("gpu-job-master.yaml"))
+        else:
+            print("%s already exists"%(yaml_path))
+        if exec_true == "true":
+            os.system("kubectl apply -f gpu-job-master.yaml")
+            time.sleep( 12 )
+
         if gpu_num > 1:
             for i in range(1,int(gpu_num)):
                 file_name = ''.join(['gpu-pod-slave', str(i), '.yaml'])
@@ -132,15 +144,6 @@ if __name__ == '__main__':
                 if exec_true == "true":
                     k8s_apply = "kubectl apply -f " + yaml_path
                     os.system(k8s_apply)
-
-        yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
-        if not os.path.exists(yaml_path):
-            generate_gpu_job_slave(yaml_path)
-            print("%s created"%("gpu-job-master.yaml"))
-        else:
-            print("%s already exists"%(yaml_path))
-        if exec_true == "true":
-            os.system("kubectl apply -f gpu-job-master.yaml")
 
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:

@@ -120,8 +120,11 @@ if [ $DELETE -eq 1 ]; then
 fi
 
 function monitor_logs() {
-	kubectl get pods -n $NAMESPACE
-	echo -e  "\033[36mPlease execute 'kubectl logs -f PODNAME -n $NAMESPACE' to do monitoring..\033[0m"
+	if [ $EXEC_TRUE = "true" ]; then
+		sleep 3
+		kubectl get pods -n $NAMESPACE
+		echo -e  "\033[36mPlease execute 'kubectl logs -f PODNAME -n $NAMESPACE' to do monitoring..\033[0m"
+	fi
 }
 
 # create namespace

@@ -144,8 +144,9 @@ if __name__ == '__main__':
                     k8s_apply = "kubectl apply -f " + yaml_path
                     os.system(k8s_apply)
 
-        print("\033[1;33mPlease wait a minute to let slave pod startup...\033[3,31m")
-        print_wait_msg(20) # 给slave一些时间，这样可以避免master job重新启动
+        if exec_true == "true":
+            print("\033[1;33mPlease wait a minute to let slave pod startup... \033[3,31m")
+            print_wait_msg(20) # 给slave一些时间，这样可以避免master job重新启动
 
         yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
         if not os.path.exists(yaml_path):

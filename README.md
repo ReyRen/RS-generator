@@ -35,23 +35,23 @@
 ```
 ./main.sh -h
 ```
-如果想要创建2个GPU的训练:
+如果想要创建2个GPU的训练(默认是使用horovod):
 ```
 ./main.sh -g 2
 ```
-如果想要指定命名空间并且使用3个GPU进行训练(如果不指定`-n`,那就是`default`命名空间使用):
+如果想要指定命名空间并且使用3个GPU进行训练(如果不指定`-n`,那就是`default`命名空间使用, 默认使用horovod):
 ```
 ./main.sh -n NAMESPACE -g 3
 ```
-如果是想使用2个CPU进行训练:
+如果是想使用2个CPU进行训练(默认使用horovod):
 ```
 ./main.sh -c 2
 ```
-如果想要指定命名空间并且使用3个CPU进行训练:
+如果想要指定命名空间并且使用3个CPU进行训练(默认使用horovod):
 ```
 ./main.sh -n NAMESPACE -c 3
 ```
-如果想要混合使用:
+如果想要混合使用(默认使用horovod):
 ```
 ./main.sh -n NAMESPACE -g 2 -c 2
 ```
@@ -61,7 +61,12 @@
 ```
 ./main.sh -D NAMESPACE
 ```
-默认是创建RS文件并且执行起来的，如果想要进行修改，或者不想让马上执行，而只是想拿到模板文件:
+默认是创建RS文件并且执行起来的，如果想要进行修改，或者不想让马上执行，而只是想拿到模板文件(默认使用horovod):
 ```
 ./main.sh -e false
 ```
+所有上面的操作，如果想要使用tensorflow, 就需要指定`-d`为tensorflow了
+```
+./main.sh -n ai -c 2 -g 2 -d tensorflow
+```
+**注意:** 现在对tensorflow的实现中-c代表ps的数量(只是用cpu资源), -g代表worker的数量(只使用gpu). 如果有其余需求再进行补充:)

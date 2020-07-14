@@ -8,6 +8,13 @@
 #       重启: python daemon_class.py restart
 #       查看: ps -axj | grep daemon_class
  
+NAMESPACE="ai"
+GPU_NUM=0
+CPU_NUM=0
+DELETE=0
+EXEC_TRUE="true"
+DISTRIBUTION="horovod"
+
 import atexit, os, sys, time, signal,json
 from tornado import ioloop
 from tornado.web import Application
@@ -36,25 +43,34 @@ class switch(object):
 
 
 def execute_RS_generator(tag, text):
-    NAMESPACE="ai"
-    GPU_NUM=0
-    CPU_NUM=0
-    DELETE=0
-    EXEC_TRUE=true
-    DISTRIBUTION="horovod"
+    global NAMESPACE
+    global GPU_NUM
+    global CPU_NUM
+    global DELETE
+    global EXEC_TRUE
+    global DISTRIBUTION
 
     exec_command = "/bin/bash main.sh "
     
     for case in switch(tag):
         if case('namespace'): 
-            NAMESPACE=text
+            NAMESPACE = text
             break
         if case('gpu'):
-            GPU_NUM=text
+            GPU_NUM = text
             break
         if case('cpu'):
-
+            CPU_NUM = text
+            break
+        if case('execuation'):
+            EXEC_TRUE = text
+            break
+        if case('distribution'):
+            DISTRIBUTION = text
+            break
+    exec_command = "/bin/bash main.sh " + "-n " + NAMESPACE + " -g " + bytes(GPU_NUM) + " -c " + bytes(CPU_NUM) + " -e " +  EXEC_TRUE + " -d " + DISTRIBUTION
     
+    return exec_command
 
 class EchoWebSocket(WebSocketHandler):
     def open(self):
@@ -66,32 +82,24 @@ class EchoWebSocket(WebSocketHandler):
         fd = open(log_fn, 'a')
         #fd.write("start to execute RS-generator\n")
         #os.system('/bin/bash server.sh %s'%(message))# system.os("xxxx%s %s" % (paramA,paramB)
-        fd.write(message + "\n")
         xml = ET.fromstring(message)
 
         for table in xml.iter('infomation'):
             for child in table:
                 #print child.tag, child.text
                 if str(child.tag) == "selectedModelId":
-                    fd.write("Fuck the module ID: ")
-                    fd.write(str(child.text))
+                    res_exec_cmd = execute_RS_generator("namespace",str(child.text))
                     fd.write("\n")
                 elif str(child.tag) == "selectedModelUrl":
-                    fd.write("Fuck the url: ")
-                    fd.write(str(child.text))
+                    res_exec_cmd = execute_RS_generator("gpu",str(child.text))
                     fd.write("\n")
                 elif str(child.tag) == "selectedDataset":
-                    fd.write("Fuck the dataset: ")
-                    fd.write(str(child.text))
-                    fd.write("\n")
+                    res_exec_cmd = execute_RS_generator("cpu",str(child.text))
                 elif str(child.tag) == "selectedBackend":
-                    fd.write("Fuck the backend: ")
-                    fd.write(str(child.text))
-                    fd.write("\n")
+                    res_exec_cmd = execute_RS_generator("execuation",str(child.text))
                 elif str(child.tag) == "selectedNodes":
-                    fd.write("Fuck the nodes: ")
-                    fd.write(str(child.text))
-                    fd.write("\n")
+                    res_exec_cmd = execute_RS_generator("distribution",str(child.text))
+        fd.write(res_exec_cmd)
         self.write_message(u"success")
         fd.close()
 

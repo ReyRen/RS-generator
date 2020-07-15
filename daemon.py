@@ -72,40 +72,72 @@ def execute_RS_generator(tag, text):
     
     return exec_command
 
+def get_resources_capacity(rsType):
+
+    for case in switch(rsType):
+        if case('gpu'):
+            strings_capacity = r"kubectl describe nodes  |  tr -d '\000' | sed -n -e '/^Name/,/Roles/p' -e '/^Capacity/,/Allocatable/p' -e '/^Allocated resources/,/Events/p' | grep -e Name  -e  nvidia.com  | perl -pe 's/\n//'  |  perl -pe 's/Name:/\n/g' | sed 's/nvidia.com\/gpu:\?//g'  | sed '1s/^/Node Available(GPUs)  Used(GPUs)/' | sed 's/$/0 0 0/'  | awk '{print $1, $2, $3}'  | column -t | awk '{sum += $2};END {print sum}'"
+            strings_used = r"kubectl describe nodes  |  tr -d '\000' | sed -n -e '/^Name/,/Roles/p' -e '/^Capacity/,/Allocatable/p' -e '/^Allocated resources/,/Events/p' | grep -e Name  -e  nvidia.com  | perl -pe 's/\n//'  |  perl -pe 's/Name:/\n/g' | sed 's/nvidia.com\/gpu:\?//g'  | sed '1s/^/Node Available(GPUs)  Used(GPUs)/' | sed 's/$/0 0 0/'  | awk '{print $1, $2, $3}'  | column -t | awk '{sum += $3};END {print sum}'"
+            f = os.popen(strings_capacity)
+            num_capacity = f.read()
+            f1 = os.popen(strings_used)
+            num_used = f1.read()
+            f.close()
+            f1.close()
+
+    return int(num_capacity), int(num_used), int(num_capacity)-int(num_used)
+
+
 class EchoWebSocket(WebSocketHandler):
     def open(self):
         fd = open(log_fn, 'w')
-        fd.write("webSocket opened\n")
+        fd.write("connection opened\n")
+
+        # get rs capacity()
+        str_capacity,str_used,str_avaliable = get_resources_capacity("gpu")
+
+        rs_msg = {'gpu-capacity':str_capacity, 'gpu-used':str_used, 'gpu-available':str(str_avaliable)}
+        
+        self.write_message(json.dumps(rs_msg))
+
+        # record to log file
+        fd.write("gpu capacity:" + str(str_capacity) + "\n")
+        fd.write("gpu used:" + str(str_used) + "\n")
+        fd.write("gpu available:" + str(str_avaliable) + "\n")
+
         fd.close()
 
     def on_message(self, message):
+        res_exec_cmd = ""
+
         fd = open(log_fn, 'a')
         #fd.write("start to execute RS-generator\n")
         #os.system('/bin/bash server.sh %s'%(message))# system.os("xxxx%s %s" % (paramA,paramB)
         xml = ET.fromstring(message)
 
-        for table in xml.iter('infomation'):
+        for table in xml.iter('information'):
             for child in table:
                 #print child.tag, child.text
                 if str(child.tag) == "selectedModelId":
                     res_exec_cmd = execute_RS_generator("namespace",str(child.text))
-                    fd.write("\n")
                 elif str(child.tag) == "selectedModelUrl":
                     res_exec_cmd = execute_RS_generator("gpu",str(child.text))
-                    fd.write("\n")
                 elif str(child.tag) == "selectedDataset":
                     res_exec_cmd = execute_RS_generator("cpu",str(child.text))
                 elif str(child.tag) == "selectedBackend":
                     res_exec_cmd = execute_RS_generator("execuation",str(child.text))
                 elif str(child.tag) == "selectedNodes":
                     res_exec_cmd = execute_RS_generator("distribution",str(child.text))
+        # record to log file
         fd.write(res_exec_cmd)
+        fd.write('\n')
+
         self.write_message(u"success")
         fd.close()
 
     def on_close(self):
         fd = open(log_fn, 'a')
-        fd.write("webSocket closed\n")
+        fd.write("connection closed\n")
         fd.close()
 
     def check_origin(self, origin):

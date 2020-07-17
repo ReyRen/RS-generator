@@ -34,16 +34,17 @@ def generate_service_template(serviceName, selectorName):
     return py_object
 
 def get_running_status():
-    strings = r"kubectl get pods -n ai -l run=" + svcSelector + r" | awk -v RS='RUNNING' 'END {print --NR}'"
+    strings = r"kubectl get pods -n ai -l run=" + svcSelector + r" | awk -v RS='Running' 'END {print --NR}'"
     f = os.popen(strings)
     contents = f.read()
+    print(contents.rstrip())
     if contents.rstrip() == gpu_num:
         return True
     return False
 
 def get_net1_ip(podName):
 # kubectl exec -it pod-slave18 -n ai -- hostname -I |  awk '{print $2}'
-    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + " -I |  awk '{print $2}'"
+    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + r" -- hostname -I |  awk '{print $2}'"
     f = os.popen(popenCmd)
     netIp = f.read()
     f.close()
@@ -60,6 +61,9 @@ def print_wait_msg(num):
     print("")
 
 def generate_gpu_pod():
+
+    master_pod_list = []
+    arg_extra_ssh = ""
 
     # ready to yaml file
     current_path = os.path.abspath(".")
@@ -100,6 +104,7 @@ def generate_gpu_pod():
             if exec_true == "true":
                 k8s_apply = "kubectl apply -f " + os.path.join(current_path, file_name)
                 os.system(k8s_apply)
+                master_pod_list.append(podNameMaster)
             print_msg(svcNameMaster, 22, svcSelector, podNameMaster, containerMaster, mount_path, volume_name, claim_name)
             continue
         num = i - 1
@@ -123,14 +128,19 @@ def generate_gpu_pod():
         if exec_true == "true":
             k8s_apply = "kubectl apply -f " + os.path.join(current_path, file_name)
             os.system(k8s_apply)
-    if int(gpu_num) > 1 and exec_true == "true":
+            master_pod_list.append(podNameSlave)
+    print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
+    print_wait_msg(30)
+    while not get_running_status():
         print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
-        print_wait_msg(20)
-        if get_running_status():
-            print("\033[1;33mAll be running status\033[3,31m")
-        else:
-            print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
-            print_wait_msg(20)
+        print_wait_msg(10)
+    print("\033[1;33mInstall some small components and transfer ssh keys\033[3,31m")
+    print_wait_msg(20)
+    for l in master_pod_list:
+        ipStr = get_net1_ip(l)
+        arg_extra_ssh = "kubectl exec " + podNameMaster + " -n " + namespace + " -it -- " + "sshpass -p admin123 ssh-copy-id root@" + ipStr
+        os.system(arg_extra_ssh)
+
 
 
 #arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
@@ -152,10 +162,7 @@ if __name__ == '__main__':
 
         generate_gpu_pod()
 
-
 #if not os.path.exists(yaml_path):
-    
-
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:
         logging.error("Failed to create RS in %s namespaces: {}" %(namespace))

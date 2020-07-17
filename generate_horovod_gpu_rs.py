@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import time
+import subprocess
 
 
 def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name):
@@ -37,7 +38,6 @@ def get_running_status():
     strings = r"kubectl get pods -n ai -l run=" + svcSelector + r" | awk -v RS='Running' 'END {print --NR}'"
     f = os.popen(strings)
     contents = f.read()
-    print(contents.rstrip())
     if contents.rstrip() == gpu_num:
         return True
     return False
@@ -136,14 +136,24 @@ def generate_gpu_pod():
         print_wait_msg(10)
     print("\033[1;33mInstall some small components and transfer ssh keys\033[3,31m")
     print_wait_msg(20)
+    i = 1
+    arg_training = "kubectl exec "+ podNameMaster  + " -n " + namespace + " -it --  horovodrun -np " + gpu_num + " -H "
     for l in master_pod_list:
-        ipStr = get_net1_ip(l)
+        ipStr = get_net1_ip(l).rstrip()
+        fd.write(ipStr)
         arg_extra_ssh = "kubectl exec " + podNameMaster + " -n " + namespace + " -it -- " + "sshpass -p admin123 ssh-copy-id root@" + ipStr
-        os.system(arg_extra_ssh)
+        arg_training += ipStr + ":1"
+        if i < int(gpu_num):
+            arg_training += ","
+            i = i + 1
+        #os.system(arg_extra_ssh)
+        ret = subprocess.call(arg_extra_ssh, bufsize=0, stdout=fd, shell = True)
+        if ret == 0:
+            os.system("kubectl delete pods -n ai -l run=radar")
+    arg_training += " python /usr/share/horovod/tmp-yolov3/distributed_train.py "
+    #ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
+        
 
-
-
-#arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
 
 if __name__ == '__main__':
     try:
@@ -153,16 +163,21 @@ if __name__ == '__main__':
 
         list_arg_pod = []
 
+        fd = open("/tmp/training.log", 'a')
+        fd.truncate()
+
+
         # TODO:some paramaters can be modified
         image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6-special"
         #image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
         # base command
-        arg_base = 'cd /usr/share/horovod/my-yolov3/;apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
+        arg_base = 'apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
         svcSelector = "radar"
 
         generate_gpu_pod()
 
 #if not os.path.exists(yaml_path):
         logging.info("Created RS in %s namespaces." %(namespace))
+        fd.close()
     except IOError as e:
         logging.error("Failed to create RS in %s namespaces: {}" %(namespace))

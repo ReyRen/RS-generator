@@ -7,6 +7,7 @@ import os
 import sys
 import time
 
+
 def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name):
 
     print("\033[0;32m====> svc.metadata.name: %s\033[0m"%(svcName))
@@ -26,84 +27,28 @@ def generate_service_template(serviceName, selectorName):
     py_object = {
                 'apiVersion':'v1',
                 'kind':'Service',
-                'metadata':{'name':serviceName,'namespace':namespace},
+                'metadata':{'name':serviceName,'namespace':namespace,'labels':{'run':selectorName}},
                 'spec':{'selector':{'run':selectorName},'ports':[{'name':'ssh','protocol':'TCP','port':22,'targetPort':22}]}
                 }
 
     return py_object
 
-def generate_gpu_pod_slave(yaml_file, num):
+def get_running_status():
+    strings = r"kubectl get pods -n ai -l run=" + svcSelector + r" | awk -v RS='RUNNING' 'END {print --NR}'"
+    f = os.popen(strings)
+    contents = f.read()
+    if contents.rstrip() == gpu_num:
+        return True
+    return False
 
-    # generate service
-    svcName = ''.join(['pod-svc-slave', str(num)])
-    svcSelector = ''.join(['pod-selector-slave', str(num)])
-    mount_path = "/usr/share/horovod"
-    volume_name = "volume-name"
-    claim_name = "pod-pvc-volume-1"
-    py_object_svc = generate_service_template(svcName, svcSelector)
+def get_net1_ip(podName):
+# kubectl exec -it pod-slave18 -n ai -- hostname -I |  awk '{print $2}'
+    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + " -I |  awk '{print $2}'"
+    f = os.popen(popenCmd)
+    netIp = f.read()
+    f.close()
 
-    # generate pod
-    arg_pod = arg_base
-    arg_pod+="tail -f /dev/null;"
-    list_arg_pod.append(arg_pod)
-    podName = ''.join(['pod-slave', str(num)])
-    containerName = ''.join(['pod-container-slave', str(num)])
-    py_object = {
-                'apiVersion':'v1',
-                'kind':'Pod',
-                'metadata':{'name':podName,'namespace':namespace,'labels':{'run':svcSelector}},
-                'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
-    
-    # join
-    file = open(yaml_file, 'w')
-    yaml.dump_all([py_object_svc, py_object], file)
-    file.close()
-
-    print_msg(svcName, 22, svcSelector, podName, containerName, mount_path, volume_name, claim_name)
-
-
-def generate_gpu_job_slave(yaml_file):
-    # generate service
-    svcName = "job-svc-master"
-    svcSelector = "job-selector-master"
-    mount_path = "/usr/share/horovod"
-    volume_name = "volume-name"
-    claim_name = "pod-pvc-volume-1"
-    py_object_svc = generate_service_template(svcName, svcSelector)
-
-    # generate job
-    jobName = "job-master"
-    containerName = "job-container-master"
-    arg_extra=arg_base
-    arg_extra+="ssh-keygen -t rsa -P \"\" -f ~/.ssh/id_rsa;"
-    arg_extra_ssh = ""
-    arg_extra_exec = ""
-    for i in range(1, int(gpu_num)+1):
-        if i == 1:
-            arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
-            arg_extra_exec = "horovodrun -np " + gpu_num + " -H " + svcName + "." + namespace + ".svc.cluster.local:1"
-            continue
-        num = i - 1
-        svcName = ''.join(['pod-svc-slave', str(num)])
-        arg_extra_ssh += "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
-        arg_extra_exec += "," + svcName + "." + namespace + ".svc.cluster.local:1"
-
-
-    arg_extra = arg_extra + arg_extra_ssh + arg_extra_exec + " python myTrain_horovod_without_summary.py"
-    list_arg_job.append(arg_extra)
-
-    py_object = {
-                'apiVersion':'batch/v1',
-                'kind':'Job',
-                'metadata':{'name':jobName,'namespace':namespace,'labels':{'run':svcSelector}},
-                'spec':{'template':{'metadata':{'name':'job-master','labels':{'run':svcSelector}},'spec':{'containers':[{'name':containerName,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_job,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}],'restartPolicy':'Never'}}}}
-
-    # join
-    file = open(yaml_file, 'w')
-    yaml.dump_all([py_object_svc, py_object], file)
-    file.close()
-
-    print_msg(svcName, 22, svcSelector, jobName, containerName, mount_path, volume_name, claim_name)
+    return netIp
 
 def print_wait_msg(num):
 
@@ -114,6 +59,81 @@ def print_wait_msg(num):
 
     print("")
 
+def generate_gpu_pod():
+
+    # ready to yaml file
+    current_path = os.path.abspath(".")
+
+
+    # common selector label
+    #svcSelector = "radar"
+
+    # PVC
+    mount_path = "/usr/share/horovod"
+    volume_name = "nfs-volume"
+    claim_name = "pod-pvc-volume-1"
+
+    # exec cmd
+    arg_pod = arg_base
+    arg_pod += "ssh-keygen -t rsa -P \"\" -f ~/.ssh/id_rsa;tail -f /dev/null;"
+    list_arg_pod.append(arg_pod)
+
+    for i in range(1, int(gpu_num) + 1):
+        if i == 1:
+            # only master
+            svcNameMaster = "radar-master-svc"
+            podNameMaster = "radar-master"
+            containerMaster = "radar-master-container"
+            file_name = "radar-master.yaml" 
+
+            masterSvcObj = generate_service_template(svcNameMaster, svcSelector)
+            masterPodObj = {
+                            'apiVersion':'v1',
+                            'kind':'Pod',
+                            'metadata':{'name':podNameMaster,'namespace':namespace,'labels':{'run':svcSelector},'annotations':{'k8s.v1.cni.cncf.io/networks':'macvlan-conf'}},
+                            'spec':{'containers':[{'name':containerMaster,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
+            # join
+            file = open(os.path.join(current_path, file_name), 'w')
+            yaml.dump_all([masterSvcObj,masterPodObj], file)
+            file.close()
+
+            if exec_true == "true":
+                k8s_apply = "kubectl apply -f " + os.path.join(current_path, file_name)
+                os.system(k8s_apply)
+            print_msg(svcNameMaster, 22, svcSelector, podNameMaster, containerMaster, mount_path, volume_name, claim_name)
+            continue
+        num = i - 1
+        svcNameSlave = ''.join(['radar-slave-svc', str(num)])
+        podNameSlave = ''.join(['radar-slave', str(num)])
+        containerSlave = ''.join(['radar-slave-container', str(num)])
+        file_name = ''.join(['radar-slave', str(num), '.yaml'])
+
+        slaveSvcObj = generate_service_template(svcNameSlave, svcSelector)
+        slavePodObj = {
+                      'apiVersion':'v1',
+                      'kind':'Pod',
+                      'metadata':{'name':podNameSlave,'namespace':namespace,'labels':{'run':svcSelector},'annotations':{'k8s.v1.cni.cncf.io/networks':'macvlan-conf'}},
+                      'spec':{'containers':[{'name':containerSlave,'image':image_name,'command':['/bin/sh','-c'],'args':list_arg_pod,'resources':{'limits':{'nvidia.com/gpu':1}},'volumeMounts':[{'name':volume_name,'mountPath':mount_path}]}],'volumes':[{'name':volume_name,'persistentVolumeClaim':{'claimName':claim_name}}]}}
+        # join
+        file = open(os.path.join(current_path, file_name), 'w')
+        yaml.dump_all([slaveSvcObj,slavePodObj], file)
+        file.close()
+        print_msg(svcNameSlave, 22, svcSelector, podNameSlave, containerSlave, mount_path, volume_name, claim_name)
+
+        if exec_true == "true":
+            k8s_apply = "kubectl apply -f " + os.path.join(current_path, file_name)
+            os.system(k8s_apply)
+    if int(gpu_num) > 1 and exec_true == "true":
+        print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
+        print_wait_msg(20)
+        if get_running_status():
+            print("\033[1;33mAll be running status\033[3,31m")
+        else:
+            print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
+            print_wait_msg(20)
+
+
+#arg_extra_ssh = "sshpass -p admin123 ssh-copy-id root@" + svcName + "." + namespace + ".svc.cluster.local;"
 
 if __name__ == '__main__':
     try:
@@ -122,40 +142,19 @@ if __name__ == '__main__':
         exec_true = sys.argv[3]
 
         list_arg_pod = []
-        list_arg_job = []
 
         # TODO:some paramaters can be modified
-        image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
+        image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6-special"
+        #image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
         # base command
-        arg_base = 'cd /usr/share/horovod/SSD-Tensorflow/;apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
+        arg_base = 'cd /usr/share/horovod/my-yolov3/;apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
+        svcSelector = "radar"
 
-        current_path = os.path.abspath(".")
+        generate_gpu_pod()
 
-        if gpu_num > 1:
-            for i in range(1,int(gpu_num)):
-                file_name = ''.join(['gpu-pod-slave', str(i), '.yaml'])
-                yaml_path = os.path.join(current_path, file_name)
-                if not os.path.exists(yaml_path):
-                    generate_gpu_pod_slave(yaml_path, i)
-                    print("%s created"%(yaml_path))
-                else:
-                    print("%s already exists"%(yaml_path))
-                if exec_true == "true":
-                    k8s_apply = "kubectl apply -f " + yaml_path
-                    os.system(k8s_apply)
 
-        if exec_true == "true":
-            print("\033[1;33mPlease wait a minute to let slave pod startup... \033[3,31m")
-            print_wait_msg(20) # 给slave一些时间，这样可以避免master job重新启动
-
-        yaml_path = os.path.join(current_path, "gpu-job-master.yaml")
-        if not os.path.exists(yaml_path):
-            generate_gpu_job_slave(yaml_path)
-            print("%s created"%("gpu-job-master.yaml"))
-        else:
-            print("%s already exists"%(yaml_path))
-        if exec_true == "true":
-            os.system("kubectl apply -f gpu-job-master.yaml")
+#if not os.path.exists(yaml_path):
+    
 
         logging.info("Created RS in %s namespaces." %(namespace))
     except IOError as e:

@@ -44,7 +44,7 @@ def get_running_status():
 
 def get_net1_ip(podName):
 # kubectl exec -it pod-slave18 -n ai -- hostname -I |  awk '{print $2}'
-    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + r" -- hostname -I |  awk '{print $2}'"
+    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + r" -- hostname -I |  awk '{print $1}'"
     f = os.popen(popenCmd)
     netIp = f.read()
     f.close()
@@ -137,10 +137,9 @@ def generate_gpu_pod():
     print("\033[1;33mInstall some small components and transfer ssh keys\033[3,31m")
     print_wait_msg(20)
     i = 1
-    arg_training = "kubectl exec "+ podNameMaster  + " -n " + namespace + " -it --  horovodrun -np " + gpu_num + " -H "
+    arg_training = "kubectl exec "+ podNameMaster  + " -n " + namespace + " -it --  horovodrun -np " + gpu_num + " --network-interface net1 -H "
     for l in master_pod_list:
         ipStr = get_net1_ip(l).rstrip()
-        fd.write(ipStr)
         arg_extra_ssh = "kubectl exec " + podNameMaster + " -n " + namespace + " -it -- " + "sshpass -p admin123 ssh-copy-id root@" + ipStr
         arg_training += ipStr + ":1"
         if i < int(gpu_num):
@@ -148,10 +147,15 @@ def generate_gpu_pod():
             i = i + 1
         #os.system(arg_extra_ssh)
         ret = subprocess.call(arg_extra_ssh, bufsize=0, stdout=fd, shell = True)
-        if ret == 0:
-            os.system("kubectl delete pods -n ai -l run=radar")
+        #if ret == 0:
+            #os.system("kubectl delete pods -n ai -l run=radar")
     arg_training += " python /usr/share/horovod/tmp-yolov3/distributed_train.py "
-    #ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
+    ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
+    if ret == 0:
+        os.system("kubectl delete pods -n ai -l run=radar")
+    else:
+        print("execute err")
+        os.system("kubectl delete pods -n ai -l run=radar")
         
 
 
@@ -163,12 +167,12 @@ if __name__ == '__main__':
 
         list_arg_pod = []
 
-        fd = open("/tmp/training.log", 'a')
+        fd = open("/tmp/training.log", 'w')
         fd.truncate()
 
 
         # TODO:some paramaters can be modified
-        image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6-special"
+        image_name = "horovod/horovod:0.19.0-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6-opencv"
         #image_name = "horovod/horovod:0.18.1-tf1.14.0-torch1.2.0-mxnet1.5.0-py3.6"
         # base command
         arg_base = 'apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '

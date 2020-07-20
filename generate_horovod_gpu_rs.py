@@ -44,7 +44,7 @@ def get_running_status():
 
 def get_net1_ip(podName):
 # kubectl exec -it pod-slave18 -n ai -- hostname -I |  awk '{print $2}'
-    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + r" -- hostname -I |  awk '{print $1}'"
+    popenCmd = r"kubectl exec -it " + podName + " -n " + namespace + r" -- hostname -I |  awk '{print $2}'"
     f = os.popen(popenCmd)
     netIp = f.read()
     f.close()
@@ -123,39 +123,51 @@ def generate_gpu_pod():
         file = open(os.path.join(current_path, file_name), 'w')
         yaml.dump_all([slaveSvcObj,slavePodObj], file)
         file.close()
-        print_msg(svcNameSlave, 22, svcSelector, podNameSlave, containerSlave, mount_path, volume_name, claim_name)
 
         if exec_true == "true":
             k8s_apply = "kubectl apply -f " + os.path.join(current_path, file_name)
             os.system(k8s_apply)
             master_pod_list.append(podNameSlave)
-    print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
-    print_wait_msg(30)
-    while not get_running_status():
+        print_msg(svcNameSlave, 22, svcSelector, podNameSlave, containerSlave, mount_path, volume_name, claim_name)
+    if exec_true == "true":
         print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
-        print_wait_msg(10)
-    print("\033[1;33mInstall some small components and transfer ssh keys\033[3,31m")
-    print_wait_msg(20)
-    i = 1
-    arg_training = "kubectl exec "+ podNameMaster  + " -n " + namespace + " -it --  horovodrun -np " + gpu_num + " --network-interface net1 -H "
-    for l in master_pod_list:
-        ipStr = get_net1_ip(l).rstrip()
-        arg_extra_ssh = "kubectl exec " + podNameMaster + " -n " + namespace + " -it -- " + "sshpass -p admin123 ssh-copy-id root@" + ipStr
-        arg_training += ipStr + ":1"
-        if i < int(gpu_num):
-            arg_training += ","
-            i = i + 1
-        #os.system(arg_extra_ssh)
-        ret = subprocess.call(arg_extra_ssh, bufsize=0, stdout=fd, shell = True)
-        #if ret == 0:
-            #os.system("kubectl delete pods -n ai -l run=radar")
-    arg_training += " python /usr/share/horovod/tmp-yolov3/distributed_train.py "
-    ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
-    if ret == 0:
-        os.system("kubectl delete pods -n ai -l run=radar")
+        print_wait_msg(30)
+        while not get_running_status():
+            print("\033[1;33mPlease wait for a minute to let pod startup and ready the env...\033[3,31m")
+            print_wait_msg(10)
+        print("\033[1;33mInstall some small components and transfer ssh keys\033[3,31m")
+        print_wait_msg(20)
+
+        # start training
+        i = 1
+        arg_training = "kubectl exec "+ podNameMaster  + " -n " + namespace + " -it --  horovodrun -np " + gpu_num + " --network-interface net1 -H "
+        for l in master_pod_list:
+            ipStr = get_net1_ip(l).rstrip()
+            arg_extra_ssh = "kubectl exec " + podNameMaster + " -n " + namespace + " -it -- " + "sshpass -p admin123 ssh-copy-id root@" + ipStr
+            arg_training += ipStr + ":1"
+            if i < int(gpu_num):
+                arg_training += ","
+                i = i + 1
+            #os.system(arg_extra_ssh)
+            ret = subprocess.call(arg_extra_ssh, bufsize=0, stdout=fd, shell = True)
+        arg_training += " python /usr/share/horovod/tmp-yolov3/distributed_train.py "
+        ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
+        if ret == 0:
+            print("SUCCESS, clean up pods and files")
+            os.system("kubectl delete pods,services -n ai -l run=radar")
+
+            for l in master_pod_list:
+                delete_str = "rm -rf " + l + ".yaml"
+                os.system(delete_str)
+        else:
+            print("FAILD, clean up pods and files")
+            os.system("kubectl delete pods,services -n ai -l run=radar")
+
+            for l in master_pod_list:
+                delete_str = "rm -rf " + l + ".yaml"
+                os.system(delete_str)
     else:
-        print("execute err")
-        os.system("kubectl delete pods -n ai -l run=radar")
+        print("RS pod files created!")
         
 
 

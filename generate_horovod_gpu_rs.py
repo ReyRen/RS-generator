@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import subprocess
+from decouple import config
 
 
 def print_msg(svcName, port, svcSelector, podName, containerName, mount_path, volume_name, claim_name):
@@ -60,13 +61,19 @@ def print_wait_msg(num):
 
     print("")
 
+def decouple_env_parmaters(string):
+
+    return string + " --first_epochs=" + config('EPOCH_NUM1') + " --second_epochs=" + config('EPOCH_NUM2') + " --numbers=" + config('SAVE_NUM') + " --learning_rate=" + config('LEARNING_RATE') + " --batch_size=" + config('BATCH_SIZE') + " --data_url=" + config('DATASET_URL') + " --model_url=" + config('MODEL_URL')
+
 def generate_gpu_pod():
+
+    ret = 0
 
     master_pod_list = []
     arg_extra_ssh = ""
 
     # ready to yaml file
-    current_path = os.path.abspath(".")
+    current_path = os.path.abspath(".podFile/")
 
 
     # common selector label
@@ -151,26 +158,33 @@ def generate_gpu_pod():
             #os.system(arg_extra_ssh)
             ret = subprocess.call(arg_extra_ssh, bufsize=0, stdout=fd, shell = True)
         arg_training += " python /usr/share/horovod/tmp-yolov3/distributed_train.py "
+        arg_training = decouple_env_parmaters(arg_training)
+        #print(arg_training)
         ret = subprocess.call(arg_training, bufsize=0, stdout=fd, shell = True)
         if ret == 0:
             print("SUCCESS, clean up pods and files")
             os.system("kubectl delete pods,services -n ai -l run=radar")
+            f = open('/data/volumes/v1/tmp-restore-dir-do-not-touch/tmp',"r+")
+            f.truncate()
+            f.close()
 
             for l in master_pod_list:
-                delete_str = "rm -rf " + l + ".yaml"
+                delete_str = "rm -rf .podFile/" + l + ".yaml"
                 os.system(delete_str)
         else:
             print("FAILD, clean up pods and files")
             os.system("kubectl delete pods,services -n ai -l run=radar")
+            f = open('/data/volumes/v1/tmp-restore-dir-do-not-touch/tmp',"r+")
+            f.truncate()
+            f.close()
 
             for l in master_pod_list:
-                delete_str = "rm -rf " + l + ".yaml"
+                delete_str = "rm -rf .podFile/" + l + ".yaml"
                 os.system(delete_str)
     else:
         print("RS pod files created!")
+    return ret
         
-
-
 if __name__ == '__main__':
     try:
         namespace = sys.argv[1]
@@ -179,7 +193,7 @@ if __name__ == '__main__':
 
         list_arg_pod = []
 
-        fd = open("/tmp/training.log", 'w')
+        fd = open("/tmp/training.log", 'w+')
         fd.truncate()
 
 
@@ -190,10 +204,13 @@ if __name__ == '__main__':
         arg_base = 'apt update -y;apt install ssh sshpass -y;echo root:admin123|chpasswd;tmp=\"PermitRootLogin yes\";sed -i \"/^#PermitRootLogin/c$tmp\" /etc/ssh/sshd_config;/etc/init.d/ssh restart; '
         svcSelector = "radar"
 
-        generate_gpu_pod()
+        res = generate_gpu_pod()
+
 
 #if not os.path.exists(yaml_path):
         logging.info("Created RS in %s namespaces." %(namespace))
         fd.close()
+        sys.exit(res)
     except IOError as e:
         logging.error("Failed to create RS in %s namespaces: {}" %(namespace))
+        sys.exit(-1)

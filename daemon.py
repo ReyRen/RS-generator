@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #encoding: utf-8
-#description: 一个守护进程的简单包装类, 具备常用的start|stop|restart|status功能, 使用方便
-#             需要改造为守护进程的程序只需要重写基类的run函数就可以了
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 #usage: 启动: python daemon_class.py start
 #       关闭: python daemon_class.py stop
 #       状态: python daemon_class.py status
@@ -15,11 +16,12 @@ DELETE=0
 EXEC_TRUE="true"
 DISTRIBUTION="horovod"
 
-import atexit, os, sys, time, signal,json
+import atexit, os, time, signal,json
 from tornado import ioloop
 from tornado.web import Application
 from tornado.websocket import WebSocketHandler
 import xml.etree.ElementTree as ET
+import subprocess
 
 '''自定义switch/case'''
 class switch(object):
@@ -68,7 +70,7 @@ def execute_RS_generator(tag, text):
         if case('distribution'):
             DISTRIBUTION = text
             break
-    exec_command = "/bin/bash main.sh " + "-n " + NAMESPACE + " -g " + bytes(GPU_NUM) + " -c " + bytes(CPU_NUM) + " -e " +  EXEC_TRUE + " -d " + DISTRIBUTION
+    exec_command = "/bin/bash main.sh " + " -n " + NAMESPACE + " -g " + bytes(GPU_NUM) + " -c " + bytes(CPU_NUM) + " -e " +  EXEC_TRUE + " -d " + DISTRIBUTION
     
     return exec_command
 
@@ -90,13 +92,14 @@ def get_resources_capacity(rsType):
 
 class EchoWebSocket(WebSocketHandler):
     def open(self):
-        fd = open(log_fn, 'w')
+        fd = open(log_fn, 'w+')
+        fd.truncate()
         fd.write("connection opened\n")
 
         # get rs capacity()
         str_capacity,str_used,str_avaliable = get_resources_capacity("gpu")
 
-        rs_msg = {'gpu-capacity':str_capacity, 'gpu-used':str_used, 'gpu-available':str(str_avaliable)}
+        rs_msg = {'gpuCapacity':str_capacity, 'gpuUsed':str_used, 'gpuAvailable':str(str_avaliable)}
         
         self.write_message(json.dumps(rs_msg))
 
@@ -109,30 +112,79 @@ class EchoWebSocket(WebSocketHandler):
 
     def on_message(self, message):
         res_exec_cmd = ""
+        global proc
 
-        fd = open(log_fn, 'a')
-        #fd.write("start to execute RS-generator\n")
+        fd = open(log_fn, 'w+')
+        decouplefd = open(".env", 'w+')
+        decouplefd.truncate()
         #os.system('/bin/bash server.sh %s'%(message))# system.os("xxxx%s %s" % (paramA,paramB)
         xml = ET.fromstring(message)
 
+        flag = 0
         for table in xml.iter('information'):
             for child in table:
                 #print child.tag, child.text
-                if str(child.tag) == "selectedModelId":
-                    res_exec_cmd = execute_RS_generator("namespace",str(child.text))
-                elif str(child.tag) == "selectedModelUrl":
+                if str(child.tag) == "trainingCommand" and flag == 0:
+                    for case in switch(str(child.text)):
+                        if case('START'):
+                            #start training
+                            flag = 1
+                            break
+                        if case('STOP'):
+                            #stop training
+                            flag = 2
+                            break
+                elif str(child.tag) == "selectedModelUrl" and flag == 1:
+                    decouplefd.write("MODEL_URL = " + str(child.text) + "\n")
+                elif str(child.tag) == "selectedDatasetUrl" and flag == 1:
+                    decouplefd.write("DATASET_URL = " + str(child.text) + "\n")
+                elif str(child.tag) == "selectedNodes" and flag == 1:
                     res_exec_cmd = execute_RS_generator("gpu",str(child.text))
-                elif str(child.tag) == "selectedDataset":
-                    res_exec_cmd = execute_RS_generator("cpu",str(child.text))
-                elif str(child.tag) == "selectedBackend":
-                    res_exec_cmd = execute_RS_generator("execuation",str(child.text))
-                elif str(child.tag) == "selectedNodes":
-                    res_exec_cmd = execute_RS_generator("distribution",str(child.text))
-        # record to log file
-        fd.write(res_exec_cmd)
-        fd.write('\n')
+                elif str(child.tag) == "learningRate" and flag == 1:
+                    decouplefd.write("LEARNING_RATE = " + str(child.text) + "\n")
+                elif str(child.tag) == "epochNum1" and flag == 1:
+                    #NOTE: 第一阶段遍历数据集次数
+                    decouplefd.write("EPOCH_NUM1 = " + str(child.text) + "\n")
+                elif str(child.tag) == "epochNum2" and flag == 1:
+                    #NOTE: 第二阶段遍历数据集次数
+                    decouplefd.write("EPOCH_NUM2 = " + str(child.text) + "\n")
+                elif str(child.tag) == "batchSize" and flag == 1:
+                    #NOTE:batch size
+                    decouplefd.write("BATCH_SIZE = " + str(child.text) + "\n")
+                elif str(child.tag) == "selectedDataType" and flag == 1:
+                    # float32/16
+                    decouplefd.write("DATA_TYPE = " + str(child.text) + "\n")
+                elif str(child.tag) == "saveNum" and flag == 1:
+                    #NOTE: 保存的个数
+                    decouplefd.write("SAVE_NUM = " + str(child.text) + "\n")
 
         self.write_message(u"success")
+        fd.flush()
+        decouplefd.flush()
+        
+        if flag == 2:
+            fd.write("stop the execuation\n")
+            fd.flush()
+            os.system("ps aux | grep ./generate | sed -n \"1, 1p\" | awk '{print $2}' | xargs kill -9")
+            os.system("kubectl delete pods,services -n ai -l run=radar")
+            fd.write("Terminated\n")
+            ##subprocess.Popen.kill()
+            #os.killpg(proc.pid, signal.SIGTERM)
+            os.system("rm -rf .podFile/*")
+            fd.write("Terminated\n")
+            fd.flush()
+        if flag == 1:
+            # record to log file
+            fd.write(res_exec_cmd + "\n")
+            fd.write("start to execute RS-generator\n")
+#            res = subprocess.call(res_exec_cmd, bufsize=0, stdout=fd, shell = True)
+            res = subprocess.Popen(res_exec_cmd, bufsize=0, stdout=fd, shell = True) # 子父进程并行执行，否则停止命令会接受不到
+#            res = os.system(res_exec_cmd)
+            fd.write("the execute result = " + bytes(res))
+
+
+        #self.write_message(u"success")
+        decouplefd.close()
         fd.close()
 
     def on_close(self):
